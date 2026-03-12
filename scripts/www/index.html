@@ -1,11 +1,603 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>PakePlus</title>
-    </head>
-    <body>
-        PakePlus
-    </body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>日债</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bitter:ital,wght@0,400;0,700;1,400&family=Quicksand:wght@300;500;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #f2efe7;
+            background-image: radial-gradient(circle at 70% 20%, rgba(180, 160, 140, 0.2) 0%, transparent 40%),
+                              linear-gradient(125deg, #f3ede5 0%, #e3d9cf 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Quicksand', sans-serif;
+            padding: 12px;
+            color: #2b2a28;
+        }
+
+        .ledger {
+            max-width: 600px;
+            width: 100%;
+            background: rgba(249, 245, 238, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 42px;
+            box-shadow: 0 20px 40px -12px rgba(45, 35, 25, 0.4),
+                        inset 0 1px 3px rgba(255, 245, 235, 0.9);
+            padding: 28px 22px 36px;
+            border: 1px solid rgba(200, 182, 166, 0.5);
+        }
+
+        /* 日期栏 */
+        .date-cap {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 32px;
+            background: #d9cfc2;
+            padding: 6px 16px 6px 24px;
+            border-radius: 60px;
+            border: 1px solid #b7a696;
+            box-shadow: inset 0 2px 5px #f2e7dd, 0 8px 12px -8px #5f4d3d;
+        }
+        .date-cap label {
+            font-weight: 600;
+            font-size: 1rem;
+            letter-spacing: 1px;
+            color: #3f352b;
+            text-transform: uppercase;
+            font-family: 'Bitter', serif;
+        }
+        .date-cap input[type="date"] {
+            background: #fffbf5;
+            border: 1px solid #9f8b7a;
+            border-radius: 40px;
+            padding: 8px 16px;
+            font-family: 'Quicksand', sans-serif;
+            font-weight: 500;
+            color: #2b251f;
+            box-shadow: inset 0 2px 5px #d9cdc1;
+            outline: none;
+            font-size: 0.95rem;
+        }
+
+        /* 按钮行 */
+        .primary-actions {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 28px;
+        }
+        .btn {
+            background: #c8bcae;
+            border: none;
+            border-radius: 60px;
+            padding: 12px 24px;
+            font-weight: 600;
+            font-size: 1rem;
+            color: #2f2a24;
+            font-family: 'Bitter', serif;
+            letter-spacing: 0.3px;
+            box-shadow: 0 6px 0 #8a7b6b, 0 8px 14px rgba(70, 50, 30, 0.15);
+            transition: all 0.08s linear;
+            cursor: pointer;
+            border: 1px solid #eee1d3;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .btn:active {
+            transform: translateY(6px);
+            box-shadow: 0 2px 0 #7b6c5e, 0 6px 12px rgba(70, 50, 30, 0.1);
+        }
+        .btn-add {
+            background: #b4a695;
+            box-shadow: 0 5px 0 #7d6d5c;
+        }
+
+        /* 滑动列表容器 */
+        .list-wrapper {
+            margin: 24px 0 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            max-height: 460px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        /* 可滑动行 — 移除scroll-snap，依靠js吸附 */
+        .debt-row {
+            display: flex;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scrollbar-width: none;  /* Firefox隐藏滚动条 */
+            -ms-overflow-style: none; /* IE */
+            background: transparent;
+            border-radius: 32px;
+            scroll-behavior: smooth;  /* 让js调用的scrollTo有动画 */
+            background-color: #fcf8f3;
+            border: 1px solid #d1c1b2;
+            box-shadow: 0 6px 12px -6px rgba(75, 55, 40, 0.2);
+        }
+        .debt-row::-webkit-scrollbar {
+            display: none;  /* Chrome/Safari */
+        }
+
+        /* 内容区域宽度100%，强迫删除区挤到右侧不可见 */
+        .row-content {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 100%;
+            padding: 12px 18px 12px 22px;
+            background: #fcf8f3;
+            border-radius: 32px 0 0 32px;
+            flex-shrink: 0;
+        }
+
+        /* 删除图标区域 */
+        .delete-area {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 80px;
+            background: #c0846f;   /* 温暖陶土色 */
+            color: #2d201b;
+            font-size: 2rem;        /* 放大图标 */
+            line-height: 1;
+            border-radius: 0 32px 32px 0;
+            cursor: pointer;
+            border-left: 2px dashed #a57461;
+            box-shadow: inset 0 0 0 1px #e5c3b2;
+            transition: background 0.15s;
+            user-select: none;
+            font-family: 'Segoe UI', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif;
+        }
+        .delete-area:active {
+            background: #a56f5a;
+        }
+
+        /* 行内输入框 */
+        .row-content input {
+            background: #fffcf7;
+            border: 1px solid #cfc1b4;
+            border-radius: 26px;
+            padding: 12px 16px;
+            font-size: 1rem;
+            font-family: 'Quicksand', sans-serif;
+            font-weight: 500;
+            color: #2b2925;
+            outline: none;
+            transition: border 0.2s, box-shadow 0.2s;
+            width: 0;
+            flex: 1;
+            min-width: 100px;
+            box-shadow: inset 0 2px 4px #ede3d9;
+        }
+        .row-content input:focus {
+            border-color: #ab8e78;
+            box-shadow: inset 0 2px 6px #d9caba, 0 0 0 3px rgba(180, 145, 120, 0.25);
+        }
+        .row-content input[type="text"] {
+            flex: 1.2;
+        }
+        .row-content input[type="number"] {
+            flex: 0.9;
+        }
+
+        /* 底部栏 — 按钮强制左，总额区块右 */
+        .footer-calc {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #e3d9cf;
+            border-radius: 60px;
+            padding: 6px 6px 6px 10px;
+            border: 1px solid #b9aa9b;
+            box-shadow: inset 0 1px 5px #f3ede5, 0 8px 14px -10px #3f3329;
+        }
+        .btn-calc {
+            background: #9b8877;
+            box-shadow: 0 5px 0 #65574b;
+            border: none;
+            border-radius: 60px;
+            padding: 12px 26px;
+            font-weight: 700;
+            color: #fcf3ea;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: 0.08s;
+            border: 1px solid #ccbba9;
+            font-family: 'Bitter', serif;
+            /* 保证在左 */
+            margin-right: auto;
+        }
+        .btn-calc:active {
+            transform: translateY(5px);
+            box-shadow: 0 1px 0 #4f443b;
+        }
+        .total-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(90, 75, 60, 0.1);
+            border-radius: 60px;
+            padding-left: 18px;
+        }
+        .total-label {
+            font-weight: 600;
+            font-size: 1.25rem;
+            font-family: 'Bitter', serif;
+            color: #3f352e;
+            white-space: nowrap;
+        }
+        .total-value {
+            background: #51483e;
+            color: #f0e2d6;
+            padding: 8px 22px;
+            border-radius: 60px;
+            font-weight: 700;
+            font-size: 1.7rem;
+            line-height: 1.2;
+            min-width: 110px;
+            text-align: center;
+            box-shadow: inset 0 -3px 0 #2e271f;
+            font-family: 'Bitter', serif;
+            letter-spacing: 0.5px;
+        }
+
+        .hint {
+            color: #6e5f52;
+            margin-top: 16px;
+            font-size: 0.85rem;
+            text-align: center;
+            opacity: 0.75;
+            letter-spacing: 0.3px;
+            border-top: 1px dashed #bfb0a2;
+            padding-top: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="ledger">
+        <!-- 日期选择栏 -->
+        <div class="date-cap">
+            <label>📅 日债</label>
+            <input type="date" id="datePicker">
+        </div>
+
+        <!-- 新增行按钮 -->
+        <div class="primary-actions">
+            <button class="btn btn-add" id="addRowBtn">+ 增加</button>
+        </div>
+
+        <!-- 列表容器 (动态行) -->
+        <div class="list-wrapper" id="listContainer"></div>
+
+        <!-- 底部计算与总和 — 按钮固定左侧，总和区块右侧 -->
+        <div class="footer-calc">
+            <button class="btn-calc" id="calcSaveBtn">计算</button>
+            <div class="total-wrapper">
+                <span class="total-label">总和</span>
+                <span class="total-value" id="totalDisplay">0.00</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const STORAGE_KEY = 'debt_daily_ledger_v3';
+
+            // 默认四行
+            const DEFAULT_ROWS = [
+                { name: '借呗', value: null },
+                { name: '花呗', value: null },
+                { name: '放心贷', value: null },
+                { name: '抖音月付', value: null }
+            ];
+
+            function getTodayStr() {
+                const d = new Date();
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+
+            let currentDate = getTodayStr();
+            let currentRows = JSON.parse(JSON.stringify(DEFAULT_ROWS));
+            let storedRecords = {};
+
+            // 加载存储
+            function loadStorage() {
+                try {
+                    const raw = localStorage.getItem(STORAGE_KEY);
+                    if (raw) {
+                        storedRecords = JSON.parse(raw) || {};
+                        if (typeof storedRecords !== 'object') storedRecords = {};
+                    } else {
+                        storedRecords = {};
+                    }
+                } catch (e) {
+                    storedRecords = {};
+                }
+            }
+            loadStorage();
+
+            // 保存至localStorage, 并触发去重
+            function persistRecords() {
+                let dateList = Object.keys(storedRecords).sort();
+                if (dateList.length >= 50) {
+                    deduplicateConsecutiveRecords();
+                }
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(storedRecords));
+                // 如果当前日期被去重移除，重新加载
+                if (!storedRecords.hasOwnProperty(currentDate)) {
+                    loadDate(currentDate); // 会自动找最近
+                }
+            }
+
+            // 去重: 连续相同保留最早
+            function deduplicateConsecutiveRecords() {
+                const dates = Object.keys(storedRecords).sort();
+                if (dates.length < 2) return;
+                const newRecords = { ...storedRecords };
+                let changed = false;
+                let i = 0;
+                while (i < dates.length - 1) {
+                    const curD = dates[i];
+                    const nextD = dates[i + 1];
+                    if (JSON.stringify(storedRecords[curD]) === JSON.stringify(storedRecords[nextD])) {
+                        delete newRecords[nextD];
+                        changed = true;
+                    }
+                    i++;
+                }
+                if (changed) {
+                    storedRecords = newRecords;
+                }
+            }
+
+            // 获取某天数据 (向前兼容)
+            function getRowsForDate(dateStr) {
+                if (storedRecords[dateStr]) {
+                    return JSON.parse(JSON.stringify(storedRecords[dateStr]));
+                }
+                const allDates = Object.keys(storedRecords).sort();
+                if (allDates.length === 0) return JSON.parse(JSON.stringify(DEFAULT_ROWS));
+                // 找 <= dateStr 的最大日期
+                let best = null;
+                for (let i = allDates.length - 1; i >= 0; i--) {
+                    if (allDates[i] <= dateStr) { best = allDates[i]; break; }
+                }
+                if (best) return JSON.parse(JSON.stringify(storedRecords[best]));
+                // 都大于当前，取最早
+                return JSON.parse(JSON.stringify(storedRecords[allDates[0]]));
+            }
+
+            // 保存当前行到存储
+            function saveCurrentRowsToStorage() {
+                const cleaned = currentRows.map(row => {
+                    let val = row.value;
+                    if (val !== null && val !== undefined && !isNaN(parseFloat(val))) {
+                        val = Math.round(parseFloat(val) * 100) / 100;
+                    } else {
+                        val = null;
+                    }
+                    return { name: row.name || '', value: val };
+                });
+                storedRecords[currentDate] = cleaned;
+                persistRecords(); // 内部去重
+            }
+
+            // 计算总和 (仅根据currentRows)
+            function calculateTotal() {
+                let total = 0;
+                currentRows.forEach(row => {
+                    if (row.value !== null && !isNaN(row.value)) total += parseFloat(row.value) || 0;
+                });
+                return total;
+            }
+
+            // 更新总和显示 (由计算按钮触发)
+            function updateTotalDisplay() {
+                const total = calculateTotal();
+                document.getElementById('totalDisplay').innerText = total.toFixed(2);
+            }
+
+            // 转义
+            function escapeHtml(unsafe) {
+                if (unsafe === undefined || unsafe === null) return '';
+                return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+            }
+
+            // 渲染列表
+            function renderList() {
+                const container = document.getElementById('listContainer');
+                if (!container) return;
+                let html = '';
+                currentRows.forEach((row, idx) => {
+                    const displayValue = (row.value !== null && !isNaN(row.value)) ? row.value : '';
+                    html += `
+                        <div class="debt-row" data-index="${idx}">
+                            <div class="row-content">
+                                <input type="text" class="row-name" placeholder="名称" value="${escapeHtml(row.name || '')}" data-index="${idx}">
+                                <input type="number" step="0.01" class="row-value" placeholder="0.00" value="${escapeHtml(displayValue)}" data-index="${idx}">
+                            </div>
+                            <div class="delete-area" data-index="${idx}">🗑️</div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+
+                attachInputEvents();
+                attachDeleteEvents();
+                attachSwipeBehavior();  // 滑动吸附
+                // 注意：渲染时不更新总和，保持之前显示
+            }
+
+            // 输入事件
+            function attachInputEvents() {
+                document.querySelectorAll('.row-name, .row-value').forEach(inp => {
+                    inp.removeEventListener('input', inputHandler);
+                    inp.addEventListener('input', inputHandler);
+                });
+                document.querySelectorAll('.row-value').forEach(inp => {
+                    inp.removeEventListener('blur', blurHandler);
+                    inp.addEventListener('blur', blurHandler);
+                });
+            }
+            function inputHandler(e) {
+                const idx = e.target.dataset.index;
+                if (idx === undefined) return;
+                if (e.target.classList.contains('row-name')) {
+                    currentRows[idx].name = e.target.value;
+                } else {
+                    let val = e.target.value;
+                    currentRows[idx].value = (val === '' || val === null) ? null : (isNaN(parseFloat(val)) ? null : parseFloat(val));
+                }
+                saveCurrentRowsToStorage();
+                // 不更新总和显示
+            }
+            function blurHandler(e) {
+                const idx = e.target.dataset.index;
+                if (idx === undefined) return;
+                let raw = e.target.value;
+                if (raw !== null && raw !== '') {
+                    let num = parseFloat(raw);
+                    if (!isNaN(num)) {
+                        e.target.value = num.toFixed(2);
+                        currentRows[idx].value = num;
+                    } else {
+                        currentRows[idx].value = null;
+                        e.target.value = '';
+                    }
+                } else {
+                    currentRows[idx].value = null;
+                }
+                saveCurrentRowsToStorage();
+                // 不更新总和显示
+            }
+
+            // 删除事件
+            function attachDeleteEvents() {
+                document.querySelectorAll('.delete-area').forEach(btn => {
+                    btn.removeEventListener('click', deleteHandler);
+                    btn.addEventListener('click', deleteHandler);
+                });
+            }
+            function deleteHandler(e) {
+                e.stopPropagation();
+                const idx = e.currentTarget.dataset.index;
+                if (idx !== undefined) {
+                    currentRows.splice(idx, 1);
+                    saveCurrentRowsToStorage();
+                    renderList();
+                }
+            }
+
+            // 滑动吸附: 在pointerup时根据scrollLeft自动展开/收起删除区
+            function attachSwipeBehavior() {
+                document.querySelectorAll('.debt-row').forEach(row => {
+                    const onPointerUp = (e) => {
+                        // 如果点击在删除区域内，不处理吸附
+                        if (e.target.closest('.delete-area')) return;
+
+                        const deleteArea = row.querySelector('.delete-area');
+                        if (!deleteArea) return;
+                        const deleteWidth = deleteArea.offsetWidth; // 大约80px
+                        const scrollLeft = row.scrollLeft;
+                        if (scrollLeft > deleteWidth / 2) {
+                            row.scrollTo({ left: deleteWidth, behavior: 'smooth' });
+                        } else {
+                            row.scrollTo({ left: 0, behavior: 'smooth' });
+                        }
+                    };
+                    row.removeEventListener('pointerup', onPointerUp);
+                    row.addEventListener('pointerup', onPointerUp);
+                    row.removeEventListener('pointercancel', onPointerUp);
+                    row.addEventListener('pointercancel', onPointerUp);
+                });
+            }
+
+            // 加载特定日期
+            function loadDate(dateStr) {
+                currentDate = dateStr;
+                currentRows = getRowsForDate(dateStr);
+                renderList();
+                // 不更新总和，保持上次显示或0.00
+            }
+
+            // 初始化日期控件
+            const datePicker = document.getElementById('datePicker');
+            datePicker.value = currentDate;
+            loadDate(currentDate);
+
+            // 日期切换
+            datePicker.addEventListener('change', function(e) {
+                const newDate = e.target.value;
+                if (!newDate) return;
+                saveCurrentRowsToStorage();  // 保存当前页修改
+                loadDate(newDate);
+            });
+
+            // 新增行
+            document.getElementById('addRowBtn').addEventListener('click', function() {
+                currentRows.push({ name: '', value: null });
+                saveCurrentRowsToStorage();
+                renderList();
+                const container = document.getElementById('listContainer');
+                if (container) container.scrollTop = container.scrollHeight;
+            });
+
+            // 计算保存按钮: 先保存，然后更新总和显示
+            document.getElementById('calcSaveBtn').addEventListener('click', function() {
+                // 强制触发一次失焦，保证输入框内数据被记录
+                document.querySelectorAll('.row-value').forEach(inp => inp.blur());
+                saveCurrentRowsToStorage();
+                updateTotalDisplay();
+            });
+
+            // 确保当前日期有效
+            function ensureDateValid() {
+                if (!storedRecords.hasOwnProperty(currentDate)) {
+                    loadDate(currentDate);
+                }
+            }
+            // 在persist后调用
+            const originalPersist = persistRecords;
+            window.persistRecords = function() {
+                originalPersist();
+                ensureDateValid();
+            };
+            persistRecords = function() {
+                let dates = Object.keys(storedRecords).sort();
+                if (dates.length >= 50) {
+                    deduplicateConsecutiveRecords();
+                }
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(storedRecords));
+                ensureDateValid();
+            };
+
+            // 启动时检查一遍去重
+            persistRecords();
+
+            // 初始总和显示0.00 (不自动计算)
+        })();
+    </script>
+</body>
 </html>
