@@ -1,11 +1,668 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>PakePlus</title>
-    </head>
-    <body>
-        PakePlus
-    </body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>⚖️ 体重</title>
+    <!-- 字体: 锐意 Grotesk + 温润 Serif -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Chart.js 轻量绘图 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: #e2dad2;
+            font-family: 'Archivo', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+        }
+
+        .app-card {
+            max-width: 500px;
+            width: 100%;
+            background: rgba(255, 249, 240, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 44px;
+            box-shadow: 0 25px 40px -15px rgba(70, 50, 35, 0.25),
+                        inset 0 0 0 1px rgba(255, 245, 230, 0.8);
+            padding: 20px 12px 28px;
+            border: 1px solid #cfc1b4;
+        }
+
+        /* 标签页 */
+        .tab-header {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 24px;
+            background: #cdbfb2;
+            padding: 6px;
+            border-radius: 60px;
+        }
+        .tab-btn {
+            flex: 1;
+            border: none;
+            background: transparent;
+            font-family: 'Syne', sans-serif;
+            font-weight: 600;
+            font-size: 1.1rem;
+            letter-spacing: 1px;
+            padding: 10px 0;
+            border-radius: 40px;
+            color: #3f352c;
+            cursor: pointer;
+            transition: 0.2s;
+            border: 1px solid transparent;
+        }
+        .tab-btn.active {
+            background: #fffcf3;
+            color: #1f1914;
+            box-shadow: 0 4px 12px rgba(140, 100, 70, 0.2);
+            border-color: #b8a48f;
+        }
+
+        .panel {
+            display: none;
+        }
+        .panel.active {
+            display: block;
+        }
+
+        /* ---------- 记录面板 ---------- */
+        .week-picker {
+            margin-bottom: 20px;
+        }
+        .week-picker label {
+            font-family: 'Syne', sans-serif;
+            font-weight: 500;
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #6b5b4b;
+            margin-left: 12px;
+        }
+        .date-input {
+            width: 100%;
+            padding: 14px 16px;
+            background: #fffcf5;
+            border: 2px solid #cab9a8;
+            border-radius: 36px;
+            font-family: 'Archivo', sans-serif;
+            font-size: 1rem;
+            color: #1e1915;
+            outline: none;
+        }
+        .date-input:focus {
+            border-color: #9f846b;
+        }
+
+        /* 周列表容器 */
+        .week-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin: 18px 0 22px;
+        }
+
+        /* 滑动卡片 — 左滑删除 */
+        .slide-item {
+            width: 100%;
+            background: transparent;
+            border-radius: 24px;
+            overflow: hidden;
+            border: 1.5px solid #cbb9a9;
+            background: #fbf4eb;
+        }
+
+        .slide-scroll {
+            overflow-x: auto;
+            overflow-y: hidden;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            background: #fbf4eb;
+            border-radius: 24px;
+        }
+        .slide-scroll::-webkit-scrollbar {
+            display: none;
+        }
+
+        .slide-content {
+            display: flex;
+            flex-wrap: nowrap;
+            align-items: center;
+            width: fit-content;
+        }
+
+        /* 主体 — 正好占满可视区，删除按钮在右侧溢出 */
+        .day-block {
+            flex: 0 0 100%;
+            display: flex;
+            align-items: center;
+            gap: 6px;                /* 稍微收紧间距 */
+            padding: 10px 6px 10px 12px;
+            background: #fbf4eb;
+        }
+
+        .day-name {
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+            font-size: 1rem;
+            min-width: 38px;
+            text-align: left;
+            color: #3e342b;
+        }
+
+        .day-date {
+            font-size: 0.8rem;
+            font-weight: 400;
+            color: #887a6b;
+            min-width: 58px;
+            letter-spacing: 0.2px;
+            white-space: nowrap;
+        }
+
+        /* 输入框宽度缩小至原一半左右 */
+        .weight-input {
+            width: 70px;               /* 固定窄宽度 */
+            background: transparent;
+            border: none;
+            border-bottom: 2px dashed #b19881;
+            font-family: 'Archivo', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: #2d241d;
+            padding: 6px 0 4px 4px;
+            outline: none;
+            text-align: right;
+            box-sizing: border-box;
+        }
+        .weight-input:focus {
+            border-bottom-style: solid;
+            border-bottom-color: #a07d60;
+        }
+        .weight-input.missing {
+            background: rgba(255, 110, 80, 0.15);
+            border-bottom-color: #cf5c3e;
+            color: #a33b20;
+            border-radius: 8px 8px 0 0;
+        }
+
+        /* 单位独立显示 */
+        .weight-unit {
+            font-family: 'Archivo', sans-serif;
+            font-size: 0.9rem;
+            color: #7b6e61;
+            min-width: 24px;
+            white-space: nowrap;
+            margin-left: 2px;
+        }
+
+        .delete-zone {
+            flex: 0 0 64px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #fea78b;
+            height: 100%;
+            min-height: 74px;
+            border-left: 3px solid #cc7a5b;
+            cursor: pointer;
+            transition: 0.1s;
+            font-size: 1.6rem;
+            color: #561e06;
+            font-weight: 600;
+            line-height: 1.2;
+            padding: 0 2px;
+        }
+        .delete-zone span {
+            font-size: 0.65rem;
+            font-family: 'Syne', sans-serif;
+            letter-spacing: 0.5px;
+            margin-top: 2px;
+        }
+        .delete-zone:active {
+            background: #f58460;
+            color: white;
+        }
+
+        /* 身高 & BMI 区域 */
+        .stats-area {
+            background: #e3d8cd;
+            border-radius: 26px;
+            padding: 18px 16px;
+            border: 1px solid #cebcac;
+            box-shadow: inset 0 1px 5px #fffbf5, 0 6px 10px rgba(0,0,0,0.03);
+        }
+        .height-bmi {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .height-box {
+            flex: 2;
+        }
+        .bmi-box {
+            flex: 3;
+        }
+        .label-sm {
+            font-family: 'Syne', sans-serif;
+            font-size: 0.65rem;
+            letter-spacing: 1.8px;
+            text-transform: uppercase;
+            color: #6e5d4d;
+            margin-bottom: 4px;
+            margin-left: 8px;
+        }
+        .input-transparent {
+            width: 100%;
+            background: #fcf3e9;
+            border: 2px solid #c9b7a6;
+            border-radius: 24px;
+            padding: 11px 14px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: #221c16;
+            outline: none;
+            font-family: 'Archivo', sans-serif;
+        }
+        .bmi-value {
+            font-size: 2rem;
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+            line-height: 1;
+            color: #2b231d;
+        }
+        .bmi-range {
+            font-size: 0.8rem;
+            color: #695b4e;
+            margin-top: 10px;
+            border-top: 2px dotted #c9b09b;
+            padding-top: 8px;
+        }
+        .hint {
+            text-align: center;
+            font-size: 0.7rem;
+            color: #ab9a87;
+            margin-top: 10px;
+            font-style: italic;
+        }
+
+        /* 数据化面板 */
+        .date-range {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .range-item {
+            flex: 1;
+        }
+        .range-item label {
+            font-size: 0.65rem;
+            font-family: 'Syne', sans-serif;
+            color: #796756;
+            margin-left: 8px;
+        }
+        .chart-container {
+            background: #f4eae0;
+            padding: 16px 4px 4px 4px;
+            border-radius: 28px;
+            border: 2px solid #d6c4b3;
+        }
+        canvas {
+            width: 100% !important;
+            height: auto !important;
+            max-height: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-card">
+        <div class="tab-header">
+            <button class="tab-btn active" id="tabRecordBtn">📋 记录</button>
+            <button class="tab-btn" id="tabDataBtn">📊 数据化</button>
+        </div>
+
+        <!-- 记录面板 -->
+        <div id="recordPanel" class="panel active">
+            <div class="week-picker">
+                <label>📅 选择周 (周一始)</label>
+                <input type="date" id="weekDatePicker" class="date-input" value="2025-03-17">
+            </div>
+
+            <div id="weekRecordsContainer" class="week-list"></div>
+
+            <div class="stats-area">
+                <div class="height-bmi">
+                    <div class="height-box">
+                        <div class="label-sm">📏 身高 (cm)</div>
+                        <input type="number" id="heightInput" class="input-transparent" value="174" step="0.1" min="100" max="250">
+                    </div>
+                    <div class="bmi-box">
+                        <div class="label-sm">⚖️ 体重 (斤)</div>
+                        <input type="number" id="bmiWeightInput" class="input-transparent" placeholder="斤" step="0.1" min="20">
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 16px;">
+                    <span class="bmi-value" id="bmiDisplay">--</span>
+                    <span id="bmiCategory" class="bmi-range">健康 18.5~24</span>
+                </div>
+                <div class="bmi-range">偏瘦＜18.5 · 正常 18.5–24 · 超重 24–28 · 肥胖≥28</div>
+            </div>
+        </div>
+
+        <!-- 数据化面板 -->
+        <div id="dataPanel" class="panel">
+            <div class="date-range">
+                <div class="range-item">
+                    <label>📆 起始</label>
+                    <input type="date" id="startDate" class="date-input">
+                </div>
+                <div class="range-item">
+                    <label>📆 结束</label>
+                    <input type="date" id="endDate" class="date-input">
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="weightChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // 存储: 体重记录 (斤)  { "2025-03-17": 125.6 }
+            let records = {};
+            try {
+                const saved = localStorage.getItem('weight_records_clean_v3');
+                if (saved) records = JSON.parse(saved) || {};
+            } catch (e) { records = {}; }
+
+            // DOM 元素
+            const tabRecord = document.getElementById('tabRecordBtn');
+            const tabData = document.getElementById('tabDataBtn');
+            const panelRecord = document.getElementById('recordPanel');
+            const panelData = document.getElementById('dataPanel');
+            const weekDatePicker = document.getElementById('weekDatePicker');
+            const weekContainer = document.getElementById('weekRecordsContainer');
+            const heightInput = document.getElementById('heightInput');
+            const bmiWeightInput = document.getElementById('bmiWeightInput');
+            const bmiDisplay = document.getElementById('bmiDisplay');
+            const bmiCategory = document.getElementById('bmiCategory');
+            const startDateInput = document.getElementById('startDate');
+            const endDateInput = document.getElementById('endDate');
+            let chartInstance = null;
+
+            // 工具: 获取本周一 YYYY-MM-DD
+            function getThisMonday() {
+                const today = new Date();
+                const day = today.getDay(); // 0周日,1周一...
+                const diff = (day === 0 ? 6 : day - 1);
+                const monday = new Date(today);
+                monday.setDate(today.getDate() - diff);
+                return monday.toISOString().split('T')[0];
+            }
+
+            // 根据日期获得周一到周日数组
+            function getWeekDays(baseDateStr) {
+                const base = new Date(baseDateStr + 'T12:00:00');
+                const dayOfWeek = base.getDay(); 
+                const diffToMon = (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
+                const monday = new Date(base);
+                monday.setDate(base.getDate() - diffToMon);
+                const week = [];
+                for (let i = 0; i < 7; i++) {
+                    const d = new Date(monday);
+                    d.setDate(monday.getDate() + i);
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+                    week.push({ 
+                        dateStr: `${y}-${m}-${day}`, 
+                        weekday: '周' + ['一','二','三','四','五','六','日'][i] 
+                    });
+                }
+                return week;
+            }
+
+            // 渲染一周记录 (左滑删除, 单位独立)
+            function renderWeek() {
+                const selected = weekDatePicker.value || getThisMonday();
+                const weekDays = getWeekDays(selected);
+                let html = '';
+
+                weekDays.forEach(day => {
+                    const weight = records[day.dateStr] ?? '';
+                    const missingClass = (weight === '') ? 'missing' : '';
+                    html += `
+                        <div class="slide-item" data-date="${day.dateStr}">
+                            <div class="slide-scroll">
+                                <div class="slide-content">
+                                    <div class="day-block">
+                                        <span class="day-name">${day.weekday}</span>
+                                        <span class="day-date">${day.dateStr.slice(5)}</span>
+                                        <input type="number" class="weight-input ${missingClass}" value="${weight}" step="0.1" min="0" inputmode="decimal">
+                                        <span class="weight-unit">斤</span>
+                                    </div>
+                                    <div class="delete-zone" role="button" aria-label="删除记录">
+                                        ✕ <span>删除</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                weekContainer.innerHTML = html;
+
+                // 体重输入事件
+                document.querySelectorAll('.weight-input').forEach(input => {
+                    input.addEventListener('input', function(e) {
+                        const card = this.closest('.slide-item');
+                        const date = card.dataset.date;
+                        let val = this.value.trim();
+                        if (val === '' || isNaN(val) || parseFloat(val) <= 0) {
+                            delete records[date];
+                            this.classList.add('missing');
+                        } else {
+                            records[date] = parseFloat(val);
+                            this.classList.remove('missing');
+                        }
+                        localStorage.setItem('weight_records_clean_v3', JSON.stringify(records));
+                        updateBMIfromLatest();
+                        updateBMI();
+                    });
+                });
+
+                // 删除按钮
+                document.querySelectorAll('.delete-zone').forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        const card = this.closest('.slide-item');
+                        const date = card.dataset.date;
+                        delete records[date];
+                        localStorage.setItem('weight_records_clean_v3', JSON.stringify(records));
+                        renderWeek();
+                        updateBMIfromLatest();
+                        updateBMI();
+                        if (panelData.classList.contains('active')) renderChart();
+                    });
+                });
+
+                // 滑动复位
+                document.querySelectorAll('.slide-scroll').forEach(scroll => {
+                    scroll.scrollLeft = 0;
+                });
+            }
+
+            // 用最新记录填充BMI体重输入框（仅当该输入框为空时）
+            function updateBMIfromLatest() {
+                if (bmiWeightInput.value) return; // 保留手动输入
+                const dates = Object.keys(records).sort();
+                if (dates.length > 0) {
+                    bmiWeightInput.value = records[dates[dates.length-1]];
+                }
+            }
+
+            // 计算BMI并显示
+            function updateBMI() {
+                const h = parseFloat(heightInput.value) || 174;
+                const wJin = parseFloat(bmiWeightInput.value);
+                if (!wJin || wJin <= 0 || h <= 0) {
+                    bmiDisplay.innerText = '--';
+                    bmiCategory.innerText = '输入体重/身高';
+                    return;
+                }
+                const kg = wJin / 2;
+                const m = h / 100;
+                const bmi = kg / (m * m);
+                const bmiStr = bmi.toFixed(1);
+                bmiDisplay.innerText = bmiStr;
+
+                let cat = '';
+                if (bmi < 18.5) cat = '偏瘦 ⚡';
+                else if (bmi < 24) cat = '正常 ✅';
+                else if (bmi < 28) cat = '超重 ⚠️';
+                else cat = '肥胖 🔴';
+                bmiCategory.innerText = `健康范围 18.5~24 · ${cat}`;
+            }
+
+            // 绘制折线图
+            function renderChart() {
+                const start = startDateInput.value;
+                const end = endDateInput.value;
+                if (!start || !end) return;
+
+                const startObj = new Date(start + 'T00:00');
+                const endObj = new Date(end + 'T00:00');
+                if (startObj > endObj) return;
+
+                const labels = [];
+                const data = [];
+                let cur = new Date(startObj);
+                while (cur <= endObj) {
+                    const y = cur.getFullYear();
+                    const m = String(cur.getMonth() + 1).padStart(2, '0');
+                    const d = String(cur.getDate()).padStart(2, '0');
+                    const dateStr = `${y}-${m}-${d}`;
+                    labels.push(`${m}-${d}`);
+                    data.push(records[dateStr] !== undefined ? records[dateStr] : null);
+                    cur.setDate(cur.getDate() + 1);
+                }
+
+                if (chartInstance) chartInstance.destroy();
+
+                const ctx = document.getElementById('weightChart').getContext('2d');
+                chartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '体重 (斤)',
+                            data: data,
+                            borderColor: '#b45f39',
+                            backgroundColor: 'rgba(250, 175, 130, 0.1)',
+                            tension: 0.2,
+                            pointBackgroundColor: '#7d4e34',
+                            pointBorderColor: '#efe2d4',
+                            borderWidth: 4,
+                            spanGaps: false,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { 
+                                beginAtZero: false,
+                                min: Math.floor(Math.min(...data.filter(v=>v!==null)) - 2) || 100,
+                            }
+                        }
+                    }
+                });
+            }
+
+            // 事件
+            heightInput.addEventListener('input', updateBMI);
+            bmiWeightInput.addEventListener('input', updateBMI);
+
+            // 标签切换
+            tabRecord.addEventListener('click', () => {
+                tabRecord.classList.add('active');
+                tabData.classList.remove('active');
+                panelRecord.classList.add('active');
+                panelData.classList.remove('active');
+                renderWeek();
+            });
+
+            tabData.addEventListener('click', () => {
+                tabRecord.classList.remove('active');
+                tabData.classList.add('active');
+                panelRecord.classList.remove('active');
+                panelData.classList.add('active');
+                if (!startDateInput.value || !endDateInput.value) {
+                    const monday = new Date(weekDatePicker.value + 'T12:00:00');
+                    const sunday = new Date(monday);
+                    sunday.setDate(monday.getDate() + 6);
+                    startDateInput.value = monday.toISOString().split('T')[0];
+                    endDateInput.value = sunday.toISOString().split('T')[0];
+                }
+                renderChart();
+            });
+
+            weekDatePicker.addEventListener('change', () => {
+                renderWeek();
+                if (panelData.classList.contains('active')) {
+                    const monday = new Date(weekDatePicker.value + 'T12:00:00');
+                    const sunday = new Date(monday);
+                    sunday.setDate(monday.getDate() + 6);
+                    startDateInput.value = monday.toISOString().split('T')[0];
+                    endDateInput.value = sunday.toISOString().split('T')[0];
+                    renderChart();
+                }
+            });
+
+            startDateInput.addEventListener('change', () => {
+                if (panelData.classList.contains('active')) renderChart();
+            });
+            endDateInput.addEventListener('change', () => {
+                if (panelData.classList.contains('active')) renderChart();
+            });
+
+            // 初始化
+            (function init() {
+                weekDatePicker.value = getThisMonday();
+                const mon = new Date(weekDatePicker.value + 'T12:00:00');
+                const sun = new Date(mon);
+                sun.setDate(mon.getDate() + 6);
+                startDateInput.value = mon.toISOString().split('T')[0];
+                endDateInput.value = sun.toISOString().split('T')[0];
+
+                // 确保没有任何预设演示数据 (但保留用户已有的localStorage)
+                renderWeek();
+
+                const dates = Object.keys(records).sort();
+                if (dates.length) {
+                    bmiWeightInput.value = records[dates[dates.length-1]];
+                } else {
+                    bmiWeightInput.value = '';
+                }
+                updateBMI();
+            })();
+        })();
+    </script>
+</body>
 </html>
